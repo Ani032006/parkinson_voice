@@ -122,6 +122,10 @@ class ClassificationWorker:
                 "success": True,
                 "status": "CLASSIFIED",
                 "sample_id": sample.id,
+                "duration_sec": val_result.duration_sec,
+                "snr_db": val_result.snr_db,
+                "clipping_pct": val_result.clipping_pct,
+                "quality_warning": val_result.quality_warning,
                 "features": features,
                 "classification": pred_result,
                 "decline_alert": {

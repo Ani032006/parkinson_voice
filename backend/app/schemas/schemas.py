@@ -63,11 +63,81 @@ class UserResponse(BaseModel):
     patient_id: Optional[int] = None
     doctor_id: Optional[int] = None
     caregiver_id: Optional[int] = None
+    onboarding_completed: bool = True
 
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: UserResponse
+
+# --- Clinical Onboarding Schemas ---
+class DoctorOption(BaseModel):
+    id: int
+    name: str
+    specialty: str
+    clinic_name: str
+    email: str
+    phone: Optional[str] = None
+
+class CaregiverOption(BaseModel):
+    id: int
+    name: str
+    relationship_type: str
+    phone: Optional[str] = None
+
+class PatientOption(BaseModel):
+    id: int
+    name: str
+    date_of_birth: Optional[str] = None
+    diagnosis_year: Optional[int] = None
+
+class CatalogMedicationOption(BaseModel):
+    name: str
+    dosage: str
+    frequency: str
+    scheduled_times: List[str]
+    instructions: Optional[str] = None
+
+class ClinicalDirectoryResponse(BaseModel):
+    doctors: List[DoctorOption]
+    caregivers: List[CaregiverOption]
+    patients: List[PatientOption]
+    common_medications: List[CatalogMedicationOption]
+
+class OnboardingMedicationItem(BaseModel):
+    name: str
+    dosage: str
+    frequency: str = "3x daily"
+    scheduled_times: List[str] = ["08:00", "13:00", "18:00"]
+    instructions: Optional[str] = None
+
+class OnboardingRequest(BaseModel):
+    # Patient onboarding fields
+    doctor_choice: Optional[str] = "EXISTING"  # "EXISTING", "NEW", "NONE"
+    doctor_id: Optional[int] = None
+    new_doctor_name: Optional[str] = None
+    new_doctor_specialty: Optional[str] = "Movement Disorders Neurology"
+    new_doctor_clinic: Optional[str] = "Movement Disorders Center"
+    new_doctor_email: Optional[str] = None
+    new_doctor_phone: Optional[str] = None
+
+    caregiver_choice: Optional[str] = "NONE"   # "EXISTING", "NEW", "NONE"
+    caregiver_id: Optional[int] = None
+    new_caregiver_name: Optional[str] = None
+    new_caregiver_relationship: Optional[str] = "Family Member"
+    new_caregiver_phone: Optional[str] = None
+
+    date_of_birth: Optional[str] = None
+    diagnosis_year: Optional[int] = None
+    medications: List[OnboardingMedicationItem] = []
+
+    # Caregiver onboarding fields
+    patient_choice: Optional[str] = "EXISTING"  # "EXISTING", "NEW"
+    patient_id: Optional[int] = None
+    new_patient_name: Optional[str] = None
+    new_patient_dob: Optional[str] = None
+    new_patient_diagnosis_year: Optional[int] = None
+    relationship_type: Optional[str] = None
 
 # --- Feature & Classification Schemas ---
 class ExtractedFeaturesSchema(BaseModel):

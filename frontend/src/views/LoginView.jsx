@@ -317,10 +317,6 @@ export default function LoginView() {
     }
   };
 
-  const quickDemoLogin = (demoRole) => {
-    switchRole(demoRole);
-    loginUser('demo_patient', 'demo123').catch(() => {});
-  };
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-8">
@@ -412,7 +408,6 @@ export default function LoginView() {
           {/* Footer Tag */}
           <div className="mt-8 pt-4 border-t border-slate-300/60 flex flex-wrap items-center justify-between text-[11px] text-slate-500 font-bold">
             <span className="text-[#125450]">PARKINSONSVOICECOMPANION.COM</span>
-            <span>FastAPI Backend • React Biofeedback • Oxford Ensemble</span>
           </div>
 
         </div>
@@ -898,35 +893,6 @@ export default function LoginView() {
               </form>
             )}
 
-            {/* Quick Prototype Role Switches */}
-            <div className="mt-6 pt-4 border-t border-slate-100">
-              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block text-center mb-2">
-                Quick Prototype Demo Sign-In
-              </span>
-              <div className="grid grid-cols-3 gap-2">
-                <button
-                  type="button"
-                  onClick={() => quickDemoLogin('PATIENT')}
-                  className="px-2 py-1.5 bg-[#E6F7F5] hover:bg-[#2DD4BF]/30 text-[#125450] border border-[#2DD4BF]/40 rounded-xl text-[11px] font-extrabold transition text-center"
-                >
-                  Patient Demo
-                </button>
-                <button
-                  type="button"
-                  onClick={() => quickDemoLogin('CAREGIVER')}
-                  className="px-2 py-1.5 bg-[#E6F7F5] hover:bg-[#2DD4BF]/30 text-[#125450] border border-[#2DD4BF]/40 rounded-xl text-[11px] font-extrabold transition text-center"
-                >
-                  Caregiver Demo
-                </button>
-                <button
-                  type="button"
-                  onClick={() => quickDemoLogin('DOCTOR')}
-                  className="px-2 py-1.5 bg-[#E6F7F5] hover:bg-[#2DD4BF]/30 text-[#125450] border border-[#2DD4BF]/40 rounded-xl text-[11px] font-extrabold transition text-center"
-                >
-                  Doctor Demo
-                </button>
-              </div>
-            </div>
 
           </div>
         </div>

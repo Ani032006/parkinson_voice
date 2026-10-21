@@ -143,6 +143,17 @@ export const api = {
     return request('/patients');
   },
 
+  async getClinicalDirectory() {
+    return request('/patients/clinical-directory');
+  },
+
+  async submitClinicalOnboarding(payload) {
+    return request('/patients/onboarding', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
   async getPatient(id) {
     return request(`/patients/${id}`);
   },

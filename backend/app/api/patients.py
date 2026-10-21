@@ -1,11 +1,18 @@
+import json
+import re
+import random
+import datetime
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
 from backend.app.core.database import get_db
-from backend.app.core.security import get_current_user, TokenData
-from backend.app.models.models import Patient, Doctor, Caregiver, VoiceSample, ClassificationResult, Alert, Medication, MedicationLog, TherapySession
-from backend.app.schemas.schemas import PatientSummary
+from backend.app.core.security import get_current_user, TokenData, get_password_hash
+from backend.app.models.models import User, Patient, Doctor, Caregiver, VoiceSample, ClassificationResult, Alert, Medication, MedicationLog, TherapySession
+from backend.app.schemas.schemas import (
+    PatientSummary, ClinicalDirectoryResponse, DoctorOption,
+    CaregiverOption, PatientOption, CatalogMedicationOption, OnboardingRequest
+)
 
 router = APIRouter(prefix="/patients", tags=["Patients"])
 
@@ -87,6 +94,275 @@ async def list_patients(
         ))
 
     return summaries
+
+COMMON_PARKINSONS_MEDICATIONS = [
+    CatalogMedicationOption(
+        name="Carbidopa-Levodopa (Sinemet)",
+        dosage="25/100 mg",
+        frequency="3x daily",
+        scheduled_times=["08:00", "13:00", "18:00"],
+        instructions="Take 30-45 minutes before meals with a glass of water."
+    ),
+    CatalogMedicationOption(
+        name="Carbidopa-Levodopa ER (Sinemet CR)",
+        dosage="50/200 mg",
+        frequency="2x daily",
+        scheduled_times=["08:00", "20:00"],
+        instructions="Extended-release formula for smooth daytime and overnight symptom control."
+    ),
+    CatalogMedicationOption(
+        name="Pramipexole (Mirapex)",
+        dosage="0.5 mg",
+        frequency="3x daily",
+        scheduled_times=["08:00", "14:00", "20:00"],
+        instructions="Dopamine agonist. Take with meals to minimize lightheadedness or nausea."
+    ),
+    CatalogMedicationOption(
+        name="Ropinirole (Requip)",
+        dosage="2 mg",
+        frequency="3x daily",
+        scheduled_times=["08:00", "14:00", "20:00"],
+        instructions="Titrated dopamine agonist for tremor and rigidity reduction."
+    ),
+    CatalogMedicationOption(
+        name="Rasagiline (Azilect)",
+        dosage="1 mg",
+        frequency="1x daily (Morning)",
+        scheduled_times=["08:00"],
+        instructions="Selective irreversible MAO-B inhibitor taken once every morning."
+    ),
+    CatalogMedicationOption(
+        name="Amantadine HCl",
+        dosage="100 mg",
+        frequency="2x daily",
+        scheduled_times=["08:00", "14:00"],
+        instructions="NMDA receptor antagonist targeting levodopa-induced dyskinesia."
+    ),
+    CatalogMedicationOption(
+        name="Entacapone (Comtan)",
+        dosage="200 mg",
+        frequency="With each Sinemet dose",
+        scheduled_times=["08:00", "13:00", "18:00"],
+        instructions="COMT inhibitor taken simultaneously with Carbidopa-Levodopa to prolong on-time."
+    ),
+]
+
+@router.get("/clinical-directory", response_model=ClinicalDirectoryResponse)
+async def get_clinical_directory(
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Returns registered doctors, caregivers, and patients from the database,
+    plus the standard Parkinson's medications catalog for onboarding selection.
+    """
+    doc_res = await db.execute(select(Doctor).order_by(Doctor.name))
+    doctors = [
+        DoctorOption(
+            id=d.id,
+            name=d.name,
+            specialty=d.specialty or "Neurology & Movement Disorders",
+            clinic_name=d.clinic_name or "Movement Disorders Center",
+            email=d.email,
+            phone=d.phone
+        )
+        for d in doc_res.scalars().all()
+    ]
+
+    cg_res = await db.execute(select(Caregiver).order_by(Caregiver.name))
+    caregivers = [
+        CaregiverOption(
+            id=c.id,
+            name=c.name,
+            relationship_type=c.relationship_type or "Family Caregiver",
+            phone=c.phone
+        )
+        for c in cg_res.scalars().all()
+    ]
+
+    pat_res = await db.execute(select(Patient).order_by(Patient.name))
+    patients = [
+        PatientOption(
+            id=p.id,
+            name=p.name,
+            date_of_birth=str(p.date_of_birth) if p.date_of_birth else None,
+            diagnosis_year=p.diagnosis_year
+        )
+        for p in pat_res.scalars().all()
+    ]
+
+    return ClinicalDirectoryResponse(
+        doctors=doctors,
+        caregivers=caregivers,
+        patients=patients,
+        common_medications=COMMON_PARKINSONS_MEDICATIONS
+    )
+
+@router.post("/onboarding")
+async def save_clinical_onboarding(
+    req: OnboardingRequest,
+    current_user: TokenData = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Saves new patient/caregiver clinical setup to the database.
+    Allows linking existing doctors/caregivers or creating new ones,
+    and initializing Parkinson's medications schedule.
+    """
+    if current_user.role == "PATIENT":
+        p_res = await db.execute(select(Patient).where(Patient.user_id == current_user.user_id))
+        patient = p_res.scalar_one_or_none()
+        if not patient:
+            raise HTTPException(status_code=404, detail="Patient profile not found")
+
+        # 1. Attending Doctor Handling
+        if req.doctor_choice == "NEW" and req.new_doctor_name and req.new_doctor_name.strip():
+            doc_uname = re.sub(r"[^\w]", "", req.new_doctor_name.lower()) + f"_{random.randint(100, 999)}"
+            doc_email = req.new_doctor_email.strip().lower() if req.new_doctor_email else f"{doc_uname}@clinic.local"
+            doc_user = User(
+                username=doc_uname,
+                hashed_password=get_password_hash("DoctorPass123!"),
+                full_name=req.new_doctor_name.strip(),
+                email=doc_email,
+                phone_number=req.new_doctor_phone,
+                role="DOCTOR"
+            )
+            db.add(doc_user)
+            await db.flush()
+
+            new_doc = Doctor(
+                user_id=doc_user.id,
+                name=req.new_doctor_name.strip(),
+                email=doc_email,
+                phone=req.new_doctor_phone or "",
+                specialty=req.new_doctor_specialty or "Movement Disorders Neurology",
+                clinic_name=req.new_doctor_clinic or "Movement Disorders Clinic"
+            )
+            db.add(new_doc)
+            await db.flush()
+            patient.doctor_id = new_doc.id
+        elif req.doctor_choice == "EXISTING" and req.doctor_id:
+            patient.doctor_id = req.doctor_id
+        elif patient.doctor_id is None:
+            first_doc = (await db.execute(select(Doctor).limit(1))).scalar_one_or_none()
+            if first_doc:
+                patient.doctor_id = first_doc.id
+
+        # 2. Caregiver Handling
+        if req.caregiver_choice == "NEW" and req.new_caregiver_name and req.new_caregiver_name.strip():
+            cg_uname = re.sub(r"[^\w]", "", req.new_caregiver_name.lower()) + f"_{random.randint(100, 999)}"
+            cg_user = User(
+                username=cg_uname,
+                hashed_password=get_password_hash("CaregiverPass123!"),
+                full_name=req.new_caregiver_name.strip(),
+                email=f"{cg_uname}@caregiver.local",
+                phone_number=req.new_caregiver_phone,
+                role="CAREGIVER"
+            )
+            db.add(cg_user)
+            await db.flush()
+
+            new_cg = Caregiver(
+                user_id=cg_user.id,
+                name=req.new_caregiver_name.strip(),
+                email=cg_user.email,
+                phone=req.new_caregiver_phone or "",
+                relationship_type=req.new_caregiver_relationship or "Family Caregiver"
+            )
+            db.add(new_cg)
+            await db.flush()
+            patient.caregiver_id = new_cg.id
+        elif req.caregiver_choice == "EXISTING" and req.caregiver_id:
+            patient.caregiver_id = req.caregiver_id
+
+        # 3. Patient Clinical Baseline
+        if req.date_of_birth:
+            patient.date_of_birth = req.date_of_birth
+        if req.diagnosis_year:
+            patient.diagnosis_year = req.diagnosis_year
+        patient.notes = "ONBOARDING_COMPLETED"
+
+        # 4. Medication Initialization
+        if req.medications and len(req.medications) > 0:
+            for m in req.medications:
+                med = Medication(
+                    patient_id=patient.id,
+                    doctor_id=patient.doctor_id or 1,
+                    name=m.name.strip(),
+                    dosage=m.dosage.strip(),
+                    frequency=m.frequency.strip(),
+                    scheduled_times_json=json.dumps(m.scheduled_times or ["08:00", "13:00", "18:00"]),
+                    instructions=m.instructions or "Take with water as prescribed.",
+                    is_active=True
+                )
+                db.add(med)
+
+        await db.commit()
+        await db.refresh(patient)
+
+        return {
+            "success": True,
+            "message": "Clinical onboarding completed! Your doctor, caregiver, and medication schedules are saved.",
+            "patient_id": patient.id,
+            "doctor_id": patient.doctor_id,
+            "caregiver_id": patient.caregiver_id,
+            "onboarding_completed": True
+        }
+
+    elif current_user.role == "CAREGIVER":
+        c_res = await db.execute(select(Caregiver).where(Caregiver.user_id == current_user.user_id))
+        caregiver = c_res.scalar_one_or_none()
+        if not caregiver:
+            raise HTTPException(status_code=404, detail="Caregiver profile not found")
+
+        if req.relationship_type:
+            caregiver.relationship_type = req.relationship_type
+
+        linked_patient_id = None
+        if req.patient_choice == "NEW" and req.new_patient_name and req.new_patient_name.strip():
+            pat_uname = re.sub(r"[^\w]", "", req.new_patient_name.lower()) + f"_{random.randint(100, 999)}"
+            pat_user = User(
+                username=pat_uname,
+                hashed_password=get_password_hash("PatientPass123!"),
+                full_name=req.new_patient_name.strip(),
+                email=f"{pat_uname}@companion.local",
+                role="PATIENT"
+            )
+            db.add(pat_user)
+            await db.flush()
+
+            new_pat = Patient(
+                user_id=pat_user.id,
+                name=req.new_patient_name.strip(),
+                date_of_birth=req.new_patient_dob or "1960-01-01",
+                diagnosis_year=req.new_patient_diagnosis_year or datetime.datetime.now().year,
+                caregiver_id=caregiver.id,
+                doctor_id=1,
+                notes="ONBOARDING_COMPLETED"
+            )
+            db.add(new_pat)
+            await db.flush()
+            linked_patient_id = new_pat.id
+        elif req.patient_choice == "EXISTING" and req.patient_id:
+            p_to_link = (await db.execute(select(Patient).where(Patient.id == req.patient_id))).scalar_one_or_none()
+            if p_to_link:
+                p_to_link.caregiver_id = caregiver.id
+                linked_patient_id = p_to_link.id
+
+        await db.commit()
+
+        return {
+            "success": True,
+            "message": "Caregiver setup completed! You are now linked to your patient's real-time monitoring.",
+            "caregiver_id": caregiver.id,
+            "linked_patient_id": linked_patient_id,
+            "onboarding_completed": True
+        }
+
+    return {
+        "success": True,
+        "message": "Profile updated.",
+        "onboarding_completed": True
+    }
 
 @router.get("/{patient_id}", response_model=PatientSummary)
 async def get_patient(

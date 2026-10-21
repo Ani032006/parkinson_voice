@@ -304,14 +304,17 @@ async def register(req: UserRegister, db: AsyncSession = Depends(get_db)):
         p = Patient(
             user_id=new_user.id,
             name=new_user.full_name,
-            date_of_birth=datetime.date(1955, 1, 1),
-            diagnosis_year=2022,
+            date_of_birth=None,
+            diagnosis_year=None,
             baseline_hnr=20.0,
-            doctor_id=1
+            doctor_id=None,
+            caregiver_id=None,
+            notes="NEEDS_ONBOARDING"
         )
         db.add(p)
         await db.flush()
         patient_id = p.id
+        onboarding_completed = False
     elif role == "DOCTOR":
         d = Doctor(
             user_id=new_user.id,
@@ -319,11 +322,12 @@ async def register(req: UserRegister, db: AsyncSession = Depends(get_db)):
             email=user_email,
             phone=user_phone or "555-0199",
             specialty="Neurology & Movement Disorders",
-            clinic_name="Parkinson Companion Virtual Center"
+            clinic_name="Movement Disorders Clinic"
         )
         db.add(d)
         await db.flush()
         doctor_id = d.id
+        onboarding_completed = True
     elif role == "CAREGIVER":
         c = Caregiver(
             user_id=new_user.id,
@@ -335,11 +339,10 @@ async def register(req: UserRegister, db: AsyncSession = Depends(get_db)):
         db.add(c)
         await db.flush()
         caregiver_id = c.id
-        p_res = await db.execute(select(Patient).where(Patient.id == 1))
-        p = p_res.scalar_one_or_none()
-        if p:
-            p.caregiver_id = c.id
-            patient_id = p.id
+        patient_id = None
+        onboarding_completed = False
+    else:
+        onboarding_completed = True
 
     await db.commit()
 
@@ -361,7 +364,8 @@ async def register(req: UserRegister, db: AsyncSession = Depends(get_db)):
         role=role,
         patient_id=patient_id,
         doctor_id=doctor_id,
-        caregiver_id=caregiver_id
+        caregiver_id=caregiver_id,
+        onboarding_completed=onboarding_completed
     )
 
     return TokenResponse(access_token=token, token_type="bearer", user=user_resp)
@@ -425,6 +429,13 @@ async def login(credentials: UserLogin, db: AsyncSession = Depends(get_db)):
     }
     token = create_access_token(token_payload)
 
+    onboarding_completed = True
+    if user.username not in ["patient", "doctor", "caregiver"]:
+        if user.role == "PATIENT":
+            onboarding_completed = bool(p and p.notes != "NEEDS_ONBOARDING" and p.doctor_id is not None)
+        elif user.role == "CAREGIVER":
+            onboarding_completed = bool(patient_id is not None)
+
     user_resp = UserResponse(
         id=user.id,
         username=user.username,
@@ -433,7 +444,8 @@ async def login(credentials: UserLogin, db: AsyncSession = Depends(get_db)):
         role=user.role,
         patient_id=patient_id,
         doctor_id=doctor_id,
-        caregiver_id=caregiver_id
+        caregiver_id=caregiver_id,
+        onboarding_completed=onboarding_completed
     )
 
     return TokenResponse(access_token=token, token_type="bearer", user=user_resp)
@@ -647,6 +659,21 @@ async def get_me(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
+    onboarding_completed = True
+    if user.username not in ["patient", "doctor", "caregiver"]:
+        if user.role == "PATIENT":
+            p_res = await db.execute(select(Patient).where(Patient.user_id == user.id))
+            p = p_res.scalar_one_or_none()
+            onboarding_completed = bool(p and p.notes != "NEEDS_ONBOARDING" and p.doctor_id is not None)
+        elif user.role == "CAREGIVER":
+            c_res = await db.execute(select(Caregiver).where(Caregiver.user_id == user.id))
+            c = c_res.scalar_one_or_none()
+            if c:
+                p_res = await db.execute(select(Patient).where(Patient.caregiver_id == c.id))
+                onboarding_completed = bool(p_res.first())
+            else:
+                onboarding_completed = False
+
     return UserResponse(
         id=user.id,
         username=user.username,
@@ -655,5 +682,6 @@ async def get_me(
         role=user.role,
         patient_id=current_user.patient_id,
         doctor_id=current_user.doctor_id,
-        caregiver_id=current_user.caregiver_id
+        caregiver_id=current_user.caregiver_id,
+        onboarding_completed=onboarding_completed
     )

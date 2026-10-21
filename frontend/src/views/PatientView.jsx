@@ -8,7 +8,7 @@ import MedicationLogger from '../components/MedicationLogger';
 import AlertsList from '../components/AlertsList';
 import { Mic, Zap, Pill, Bell, History, Award, CheckCircle2, Heart } from 'lucide-react';
 
-export default function PatientView() {
+export default function PatientView({ onOpenOnboarding }) {
   const { user } = useAuth();
   const patientId = user?.patient_id || 1;
 
@@ -63,7 +63,24 @@ export default function PatientView() {
           <h2 className="text-2xl sm:text-3xl font-black text-white mt-1">
             Hello, {user?.full_name || 'Robert Jenkins'}
           </h2>
-          <p className="text-xs sm:text-sm text-[#C6F6F2] font-semibold mt-1 max-w-xl">
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            {patientData?.doctor_name && (
+              <span className="inline-flex items-center space-x-1 text-xs text-[#2DD4BF] font-extrabold bg-[#0D3F3C]/60 px-3 py-0.5 rounded-full border border-[#2DD4BF]/20">
+                <span>Dr. {patientData.doctor_name.replace(/^Dr\.\s*/i, '')}</span>
+                {patientData.caregiver_name && <span>• Caregiver: {patientData.caregiver_name}</span>}
+              </span>
+            )}
+            {onOpenOnboarding && (
+              <button
+                onClick={onOpenOnboarding}
+                className="inline-flex items-center space-x-1 text-xs text-white bg-white/10 hover:bg-white/20 px-3 py-0.5 rounded-full font-bold border border-white/20 transition"
+                title="Update doctor, caregiver, or medications"
+              >
+                <span>Edit Care Team & Meds</span>
+              </button>
+            )}
+          </div>
+          <p className="text-xs sm:text-sm text-[#C6F6F2] font-semibold mt-1.5 max-w-xl">
             Tap any large action below to record your voice, do your loud speech exercise, or log medication intake.
           </p>
         </div>

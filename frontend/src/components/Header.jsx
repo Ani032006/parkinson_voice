@@ -37,32 +37,44 @@ export default function Header() {
         {/* Role Switcher & User Profile Toolbar */}
         {user ? (
           <div className="flex flex-wrap items-center justify-between md:justify-end gap-2">
-            <div className="flex items-center space-x-1.5 bg-[#0D3F3C] p-1.5 rounded-full border border-[#1E8A83]">
-              <span className="text-[11px] font-bold text-[#99E6DF] uppercase tracking-wider px-3 hidden lg:inline">
-                Role:
-              </span>
-              <div className="flex space-x-1">
-                {roles.map((r) => {
-                  const Icon = r.icon;
-                  const isActive = activeRole === r.id;
-                  return (
-                    <button
-                      key={r.id}
-                      onClick={() => switchRole(r.id)}
-                      className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold transition-all duration-150 min-h-[38px] ${
-                        isActive
-                          ? 'bg-[#2DD4BF] text-[#125450] shadow-md font-extrabold'
-                          : 'text-[#C6F6F2] hover:text-white hover:bg-[#1B7B75]/60'
-                      }`}
-                      aria-pressed={isActive}
-                    >
-                      <Icon className="w-4 h-4 flex-shrink-0" />
-                      <span>{r.label}</span>
-                    </button>
-                  );
-                })}
+            {/* If user is demo account, show full role switcher. If registered patient/doctor/caregiver, show locked role badge */}
+            {['patient', 'caregiver', 'doctor'].includes(user?.username) ? (
+              <div className="flex items-center space-x-1.5 bg-[#0D3F3C] p-1.5 rounded-full border border-[#1E8A83]">
+                <span className="text-[11px] font-bold text-[#99E6DF] uppercase tracking-wider px-3 hidden lg:inline">
+                  Demo Switch:
+                </span>
+                <div className="flex space-x-1">
+                  {roles.map((r) => {
+                    const Icon = r.icon;
+                    const isActive = activeRole === r.id;
+                    return (
+                      <button
+                        key={r.id}
+                        onClick={() => switchRole(r.id)}
+                        className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold transition-all duration-150 min-h-[38px] ${
+                          isActive
+                            ? 'bg-[#2DD4BF] text-[#125450] shadow-md font-extrabold'
+                            : 'text-[#C6F6F2] hover:text-white hover:bg-[#1B7B75]/60'
+                        }`}
+                        aria-pressed={isActive}
+                      >
+                        <Icon className="w-4 h-4 flex-shrink-0" />
+                        <span>{r.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="flex items-center space-x-2 bg-[#0D3F3C] px-4 py-2 rounded-full border border-[#1E8A83] text-[#2DD4BF] shadow-sm">
+                {user.role === 'PATIENT' && <User className="w-4 h-4 text-[#2DD4BF]" />}
+                {user.role === 'CAREGIVER' && <HeartHandshake className="w-4 h-4 text-[#2DD4BF]" />}
+                {user.role === 'DOCTOR' && <Stethoscope className="w-4 h-4 text-[#2DD4BF]" />}
+                <span className="text-xs font-black uppercase tracking-wider text-white">
+                  {user.role === 'PATIENT' ? 'Patient Portal' : user.role === 'CAREGIVER' ? 'Caregiver Portal' : 'Doctor Portal'}
+                </span>
+              </div>
+            )}
 
             <div className="flex items-center space-x-3 pl-3 border-l border-[#1E8A83]">
               <div className="text-right hidden sm:block">
@@ -79,12 +91,7 @@ export default function Header() {
               </button>
             </div>
           </div>
-        ) : (
-          <div className="text-xs font-bold text-[#2DD4BF] bg-[#0D3F3C] px-3.5 py-2 rounded-full border border-[#1E8A83] flex items-center space-x-2">
-            <Sparkles className="w-3.5 h-3.5 text-[#2DD4BF]" />
-            <span>Secure Patient & Doctor Portal</span>
-          </div>
-        )}
+        ) : null}
       </div>
 
       {/* Real-Time Alert Toast Notification Banner */}

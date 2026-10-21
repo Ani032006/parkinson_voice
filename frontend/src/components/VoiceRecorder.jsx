@@ -460,10 +460,20 @@ export default function VoiceRecorder({ patientId, onSampleClassified }) {
             </div>
           </div>
 
-          {/* Decline Alert extension triggered */}
-          {result.decline_alert && (
+          {/* Quality Warning if SNR is low or clipping occurred */}
+          {result.quality_warning && (
             <div className="mt-3 bg-amber-50 border border-amber-300 rounded-lg p-3 text-amber-900 text-xs sm:text-sm flex items-start space-x-2">
               <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <strong>Acoustic Quality Notice:</strong> {result.quality_warning}
+              </div>
+            </div>
+          )}
+
+          {/* Decline Alert extension triggered */}
+          {result.decline_alert && (
+            <div className="mt-3 bg-red-50 border border-red-300 rounded-lg p-3 text-red-900 text-xs sm:text-sm flex items-start space-x-2">
+              <AlertTriangle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
               <div>
                 <strong>Decline Alert Generated ({result.decline_alert.severity}):</strong> {result.decline_alert.title} — Dispatched to Doctor and Caregiver dashboards.
               </div>

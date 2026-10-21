@@ -1,15 +1,28 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from './context/AuthContext';
 import Header from './components/Header';
 import PatientView from './views/PatientView';
 import CaregiverView from './views/CaregiverView';
 import DoctorView from './views/DoctorView';
+import ClinicalOnboardingModal from './components/ClinicalOnboardingModal';
 import { ShieldAlert, Activity, HeartHandshake, Stethoscope } from 'lucide-react';
 
 import LoginView from './views/LoginView';
 
 export default function App() {
   const { user, activeRole, loading } = useAuth();
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
+  useEffect(() => {
+    if (user && user.onboarding_completed === false) {
+      setShowOnboarding(true);
+    }
+  }, [user]);
+
+  const handleOnboardingCompleted = () => {
+    setShowOnboarding(false);
+    window.location.reload();
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-900 selection:bg-blue-600 selection:text-white">
@@ -29,9 +42,17 @@ export default function App() {
           <LoginView />
         ) : (
           <>
-            {activeRole === 'PATIENT' && <PatientView />}
-            {activeRole === 'CAREGIVER' && <CaregiverView />}
+            {activeRole === 'PATIENT' && <PatientView onOpenOnboarding={() => setShowOnboarding(true)} />}
+            {activeRole === 'CAREGIVER' && <CaregiverView onOpenOnboarding={() => setShowOnboarding(true)} />}
             {activeRole === 'DOCTOR' && <DoctorView />}
+            
+            {/* Clinical Onboarding & Care Team Setup Wizard Modal */}
+            {showOnboarding && (
+              <ClinicalOnboardingModal
+                user={user}
+                onComplete={handleOnboardingCompleted}
+              />
+            )}
           </>
         )}
       </main>
