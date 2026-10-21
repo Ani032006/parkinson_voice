@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: parkinson-voice-backend
+    env: python
+    region: oregon
+    plan: free
+    dockerfilePath: Dockerfile
+    healthCheckPath: /api/patients
+    envVars:
+      - key: PORT
+        value: 8000

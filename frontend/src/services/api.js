@@ -1,4 +1,4 @@
-const API_BASE = '/api';
+const API_BASE = (import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL || '/api').replace(/\/$/, '');
 
 export const getStoredToken = () => localStorage.getItem('pvc_token');
 export const setStoredToken = (token) => localStorage.setItem('pvc_token', token);
